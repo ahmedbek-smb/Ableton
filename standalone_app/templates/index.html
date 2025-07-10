@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AbletonMCP Standalone</title>
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a1a;
+            color: #ffffff;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: #2d2d2d;
+            padding: 20px;
+            border-bottom: 1px solid #444;
+        }
+
+        .header h1 {
+            color: #ff6b35;
+            margin-bottom: 15px;
+        }
+
+        .config-panel {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .config-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .config-group label {
+            font-size: 12px;
+            color: #aaa;
+            font-weight: 500;
+        }
+
+        select, input {
+            padding: 8px 12px;
+            border: 1px solid #444;
+            border-radius: 6px;
+            background: #333;
+            color: #fff;
+            font-size: 14px;
+        }
+
+        select:focus, input:focus {
+            outline: none;
+            border-color: #ff6b35;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            background: #ff6b35;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+
+        .btn:hover {
+            background: #e55a2b;
+        }
+
+        .btn:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+
+        .status {
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .status.connected {
+            background: #22c55e;
+            color: white;
+        }
+
+        .status.disconnected {
+            background: #ef4444;
+            color: white;
+        }
+
+        .status.connecting {
+            background: #f59e0b;
+            color: white;
+        }
+
+        .main-content {
+            flex: 1;
+            display: flex;
+            gap: 20px;
+            padding: 20px;
+            overflow: hidden;
+        }
+
+        .chat-panel {
+            flex: 2;
+            display: flex;
+            flex-direction: column;
+            background: #2d2d2d;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .chat-header {
+            padding: 15px;
+            border-bottom: 1px solid #444;
+            font-weight: 500;
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 15px;
+            overflow-y: auto;
+            background: #1a1a1a;
+        }
+
+        .message {
+            margin-bottom: 15px;
+            padding: 10px;
+            border-radius: 6px;
+            position: relative;
+        }
+
+        .message.user {
+            background: #0066cc;
+            margin-left: 20%;
+        }
+
+        .message.assistant {
+            background: #22c55e;
+            margin-right: 20%;
+        }
+
+        .message.system {
+            background: #f59e0b;
+            margin: 0 10%;
+            font-size: 12px;
+        }
+
+        .message.tool {
+            background: #8b5cf6;
+            margin: 0 10%;
+            font-size: 13px;
+        }
+
+        .message-role {
+            font-size: 11px;
+            font-weight: 600;
+            opacity: 0.8;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+
+        .message-content {
+            line-height: 1.4;
+            white-space: pre-wrap;
+        }
+
+        .message-time {
+            font-size: 10px;
+            opacity: 0.6;
+            position: absolute;
+            top: 5px;
+            right: 10px;
+        }
+
+        .chat-input {
+            border-top: 1px solid #444;
+            padding: 15px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .chat-input textarea {
+            flex: 1;
+            background: #333;
+            border: 1px solid #444;
+            border-radius: 6px;
+            color: #fff;
+            padding: 10px;
+            resize: vertical;
+            min-height: 60px;
+            max-height: 120px;
+            font-family: inherit;
+        }
+
+        .chat-input textarea:focus {
+            outline: none;
+            border-color: #ff6b35;
+        }
+
+        .tools-panel {
+            flex: 1;
+            background: #2d2d2d;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .tools-header {
+            padding: 15px;
+            border-bottom: 1px solid #444;
+            font-weight: 500;
+        }
+
+        .tools-list {
+            padding: 15px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .tool-item {
+            padding: 8px;
+            margin-bottom: 8px;
+            background: #1a1a1a;
+            border-radius: 4px;
+            border-left: 3px solid #ff6b35;
+        }
+
+        .tool-name {
+            font-weight: 500;
+            font-size: 13px;
+            color: #ff6b35;
+        }
+
+        .tool-desc {
+            font-size: 11px;
+            color: #aaa;
+            margin-top: 2px;
+            line-height: 1.3;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #444;
+            border-radius: 50%;
+            border-top-color: #ff6b35;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .error {
+            background: #ef4444 !important;
+            color: white;
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                flex-direction: column;
+            }
+            
+            .config-panel {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .config-group {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1 id="appTitle">🎵 AbletonMCP Standalone</h1>
+        <div class="config-panel">
+            <div class="config-group">
+                <label for="provider">LLM Provider</label>
+                <select id="provider">
+                    <option value="openai">OpenAI</option>
+                    <option value="anthropic">Anthropic</option>
+                </select>
+            </div>
+            <div class="config-group">
+                <label for="apiKey">API Key</label>
+                <input type="password" id="apiKey" placeholder="Enter your API key" />
+            </div>
+            <div class="config-group">
+                <label>&nbsp;</label>
+                <button class="btn" id="connectBtn" onclick="connect()">Connect</button>
+            </div>
+            <div class="config-group">
+                <label>Status</label>
+                <div class="status disconnected" id="status">Disconnected</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="chat-panel">
+            <div class="chat-header">
+                💬 Chat with Ableton Live
+            </div>
+            <div class="chat-messages" id="chatMessages">
+                <div class="message system">
+                    <div class="message-role">System</div>
+                    <div class="message-content">Welcome to AbletonMCP! Connect to your LLM provider to start controlling Ableton Live with natural language.</div>
+                </div>
+            </div>
+            <div class="chat-input">
+                <textarea id="messageInput" placeholder="Type your message here... (Ctrl+Enter to send)" 
+                         onkeydown="handleKeyPress(event)"></textarea>
+                <button class="btn" onclick="sendMessage()">Send</button>
+            </div>
+        </div>
+
+        <div class="tools-panel">
+            <div class="tools-header">
+                🛠️ Available Tools
+            </div>
+            <div class="tools-list" id="toolsList">
+                <div style="color: #666; font-style: italic; text-align: center; padding: 20px;">
+                    Connect to see available tools
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        let isConnected = false;
+
+        // Socket event listeners
+        socket.on('connection_status', function(data) {
+            isConnected = data.connected;
+            updateStatus(data.connected ? 'connected' : 'disconnected');
+            if (data.tools) {
+                updateToolsList(data.tools);
+            }
+        });
+
+        socket.on('chat_message', function(data) {
+            addChatMessage(data.role, data.content, data.timestamp);
+        });
+
+        function updateStatus(status) {
+            const statusEl = document.getElementById('status');
+            const connectBtn = document.getElementById('connectBtn');
+            
+            statusEl.className = 'status ' + status;
+            
+            if (status === 'connected') {
+                statusEl.textContent = 'Connected';
+                connectBtn.textContent = 'Connected';
+                connectBtn.disabled = false;
+            } else if (status === 'connecting') {
+                statusEl.textContent = 'Connecting...';
+                connectBtn.innerHTML = '<div class="loading"></div>';
+                connectBtn.disabled = true;
+            } else {
+                statusEl.textContent = 'Disconnected';
+                connectBtn.textContent = 'Connect';
+                connectBtn.disabled = false;
+            }
+        }
+
+        function updateToolsList(tools) {
+            const toolsList = document.getElementById('toolsList');
+            
+            if (tools.length === 0) {
+                toolsList.innerHTML = '<div style="color: #666; font-style: italic; text-align: center; padding: 20px;">No tools available</div>';
+                return;
+            }
+
+            toolsList.innerHTML = tools.map(tool => `
+                <div class="tool-item">
+                    <div class="tool-name">${tool.function.name}</div>
+                    <div class="tool-desc">${tool.function.description}</div>
+                </div>
+            `).join('');
+        }
+
+        function addChatMessage(role, content, timestamp) {
+            const messagesEl = document.getElementById('chatMessages');
+            const messageEl = document.createElement('div');
+            messageEl.className = 'message ' + role;
+            
+            const time = new Date(timestamp).toLocaleTimeString();
+            
+            messageEl.innerHTML = `
+                <div class="message-role">${role}</div>
+                <div class="message-content">${content}</div>
+                <div class="message-time">${time}</div>
+            `;
+            
+            messagesEl.appendChild(messageEl);
+            messagesEl.scrollTop = messagesEl.scrollHeight;
+        }
+
+        async function connect() {
+            const provider = document.getElementById('provider').value;
+            const apiKey = document.getElementById('apiKey').value;
+
+            if (!apiKey) {
+                alert('Please enter an API key');
+                return;
+            }
+
+            updateStatus('connecting');
+
+            try {
+                const response = await fetch('/api/connect', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        provider: provider,
+                        api_key: apiKey
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Connection failed');
+                }
+
+                // Status will be updated via socket events
+            } catch (error) {
+                console.error('Connection error:', error);
+                updateStatus('disconnected');
+                alert('Connection failed: ' + error.message);
+            }
+        }
+
+        async function sendMessage() {
+            const messageInput = document.getElementById('messageInput');
+            const message = messageInput.value.trim();
+
+            if (!message) return;
+            if (!isConnected) {
+                alert('Please connect to services first');
+                return;
+            }
+
+            messageInput.value = '';
+
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        message: message
+                    })
+                });
+
+                if (!response.ok) {
+                    const data = await response.json();
+                    throw new Error(data.error || 'Failed to send message');
+                }
+
+                // Response will come via socket events
+            } catch (error) {
+                console.error('Send message error:', error);
+                addChatMessage('system', 'Error sending message: ' + error.message, new Date().toISOString());
+            }
+        }
+
+        function handleKeyPress(event) {
+            if (event.ctrlKey && event.key === 'Enter') {
+                event.preventDefault();
+                sendMessage();
+            }
+        }
+
+        // Check if we're in demo mode and update UI
+        function checkDemoMode() {
+            // We'll detect demo mode from server responses
+            // For now, just focus the input
+            document.getElementById('messageInput').focus();
+        }
+
+        // Auto-focus on message input when page loads
+        window.addEventListener('load', function() {
+            checkDemoMode();
+        });
+    </script>
+</body>
+</html>
